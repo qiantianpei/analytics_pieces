@@ -415,14 +415,14 @@ probability 90% and convert in 31 days with probability 60%</p></li>
 probability 50% and convert in 31 days with probability 20%</p></li>
 </ul>
 <p>In addition, the company recently launched a fantastic tutorial
-program that teaches customers how to use the product. 80% of customers
-would watch the tutorial in 7 days regardless of their commitment type.
-Because the tutorial is so great, all customers that watch it would
-convert in the end.</p>
+program that teaches customers how to use the product. Because the
+tutorial is so great, all customers that watch it would convert in the
+end.</p>
 <div id="scenario-1" class="section level2">
 <h2>Scenario 1:</h2>
 <p>Over the last year, there has been a fluctuation in the proportion of
-committed customers.</p>
+committed customers. 60% of customers watched the tutorial in 7 days
+regardless of their commitment type.</p>
 <pre class="r"><code>set.seed(12523)
 simulation &lt;- 
   data.frame(
@@ -621,6 +621,42 @@ aggregated</code></pre>
 ##   email_convert_cor tutorial_convert_cor
 ##               &lt;dbl&gt;                &lt;dbl&gt;
 ## 1            0.0756                0.999</code></pre>
+<p>After seeing these 2 scenarios, we seem compelled to conclude that
+approach B might be better because it directly measures the alignment
+between the surrogate metric and the target metric (the first
+requirement for a good surrogate metric) while approach A might be too
+strict. We see from scenario 1 that even a metric cannot predict the
+target outcome well on the individual level, it can still align well
+with the target metric on the group level.</p>
+<p>Does that mean that approach 2 is better than approach 1?</p>
+<p>Let’s think about how the product team will use the metric. After we
+pick a surrogate metric for the target metric. 99% of time it’ll end up
+as the metric that the product team optimizes through designing new
+product experiences. This is why we require surrogate metrics to be
+<strong>actionable</strong> in the first place. This also implies a
+quite strong requirement on the surrogate metric. The product team
+assumes that improving this surrogate metric should end up improving the
+target metric, which requires a <strong>casual
+relationship</strong>.</p>
+<p>It is not enough to just find a metric that correlate well with the
+target metric! Going back to our fake example, suppose the product team
+decides to encourage more customers to link emails, they won’t see an
+improvement in conversion because there is simply no casual
+relationship. In fact, doing this will also break the correlation
+between linking email and converting.</p>
+<p>On the other hand, it is a great strategy to let more customers watch
+the tutorial because it can <strong>cause</strong> more people to
+convert.</p>
+<p>So how can we find a metric that is casually aligned with the target
+metric? Although we can never be sure with observational data but we
+have to go down to the individual level, i.e. to apply approach A. A
+casual relationship should almost always produce correlation on the
+individual level. However, the casual relationship can get elusive when
+we look at the changes of metrics on the group level when the changes
+are attributed to other causes.</p>
+<p>Of course, we won’t just look at correlation in practice. A more
+carefully designed casual inference is often required to make the
+decision.</p>
 </div>
 
 
