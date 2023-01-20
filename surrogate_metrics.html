@@ -382,13 +382,13 @@ metrics are often very hard to move or take long time to measure.
 Therefore, we also need shorter-term and more sensitives metrics for
 day-to-day product decisions. We often call those metrics surrogate
 metrics or leading indicators. Accordingly, surrogate metrics should be
-aligned with the target metrics, sensitive and can be measured in a
-short window of time.</p>
+aligned with the target metrics, actionable, sensitive and can be
+measured in a short window of time.</p>
 <p>The next question is then, given a target metric, how can we find its
-surrogate metrics. In this discussion, we’ll focus on the first
-requirement, “aligned with the target metrics”. (The second requirement
-is relative to what levers the team can pull while the last requirement
-is very easy to check.)</p>
+surrogate metrics. In this discussion, we’ll focus on the first 2
+requirements, “aligned with the target metrics” and “actionable”. (The
+third requirement is relative to what levers the team can pull while the
+last requirement is very easy to check.)</p>
 <p>Ideally, a surrogate metrics should reflect a casual model of how to
 improve the target metric. That is, moving the surrogate metic would
 casually move the target metric. In practice, due to complicated nature
@@ -414,19 +414,33 @@ probability 90% and convert in 31 days with probability 60%</p></li>
 <li><p>non-committed customers: they would link emails in 7 days with
 probability 50% and convert in 31 days with probability 20%</p></li>
 </ul>
-<p>Over the past 6 months, the proportion of commited customers vary as
-follows: 30%, 32%, 35%, 36%, 38%, 37%</p>
-<pre class="r"><code>simulation &lt;- 
-  data.frame(email = logical(), convert = logical(), month = integer(), reward = logical())
-commit_rate &lt;- c(0.3, 0.32, 0.35, 0.36, 0.38, 0.37)
+<p>In addition, the company recently launched a fantastic tutorial
+program that teaches customers how to use the product. 80% of customers
+would watch the tutorial in 7 days regardless of their commitment type.
+Because the tutorial is so great, all customers that watch it would
+convert in the end.</p>
+<div id="scenario-1" class="section level2">
+<h2>Scenario 1:</h2>
+<p>Over the last year, there has been a fluctuation in the proportion of
+committed customers.</p>
+<pre class="r"><code>set.seed(12523)
+simulation &lt;- 
+  data.frame(
+    email = logical(), 
+    tutorial = logical(),
+    convert = logical(),
+    month = integer()
+  )
+commit_rate &lt;- c(0.3, 0.27, 0.33, 0.35, 0.38, 0.36, 0.32, 0.4, 0.34, 0.38, 0.35, 0.39)
+tutorial_rate &lt;- 0.6
 m &lt;- 1
 N &lt;- 1e5
-quota &lt;- 2e4
 count &lt;- 0
 for (rate in commit_rate) {
   commit &lt;- 
     data.frame(
       email = runif(N * rate) &lt; 0.9, 
+      tutorial = runif(N * rate) &lt; tutorial_rate, 
       convert = runif(N * rate) &lt; 0.6, 
       month = m
     )
@@ -434,39 +448,180 @@ for (rate in commit_rate) {
   non_commit &lt;- 
     data.frame(
       email = runif(N * (1 - rate)) &lt; 0.5, 
+      tutorial = runif(N * (1 - rate)) &lt; tutorial_rate, 
       convert = runif(N * (1 - rate)) &lt; 0.4, 
       month = m
     )
+  
   combined &lt;- 
     commit %&gt;% 
     rbind(non_commit) %&gt;% 
-    arrange(-convert) %&gt;% 
     mutate(
-      row_num = 1:(nrow(commit) + nrow(non_commit)),
-      reward = (convert &amp; row_num &lt;= quota)
-    ) %&gt;% 
-    select(-row_num)
+      convert = convert | tutorial
+    )
   
   simulation &lt;- simulation %&gt;% rbind(combined)
   m &lt;- m + 1
 }</code></pre>
 <p>Following approach A, let’s calcualte the correlation on the
-individual level.</p>
+individual level. There is very low correlation between linking email
+and conversion while there is moderate correlation between watching
+tutorial and conversion. This suggests that knowing whether a customer
+watches the tutorial in 7 days can give you a decent prediction of their
+31-day conversion. We can’t know from the numbers alone but in our setup
+there is in fact a casual relationship between watching tutorial and
+conversion.</p>
 <pre class="r"><code>simulation %&gt;% 
-  summarize(email_convert_cor = cor(email, convert))</code></pre>
-<pre><code>##   email_convert_cor
-## 1        0.07625701</code></pre>
-<pre class="r"><code>simulation %&gt;% 
+  summarize(
+    email_convert_cor = cor(email, convert),
+    tutorial_convert_cor = cor(tutorial, convert)
+  )</code></pre>
+<pre><code>##   email_convert_cor tutorial_convert_cor
+## 1         0.0370922            0.6362303</code></pre>
+<p>Following approach B, we have a completely different conclusion. % of
+customers that link their emails in 7 days is highly correlated with %
+of customers that convert in 31 days. Not so for % of customers that
+watch the tutorial in 7 days.</p>
+<p>The email linking metric and conversion is highly correlated because
+they have a common <strong>cause</strong>: change in the proportion of
+committed customers.</p>
+<p>On the other hand, there is almost no change in % of customers
+watching the tutorial, so although these is a casual relationship
+between watching tutorial and converting, the relationship does not
+manifest in this scenario. You can only observe a casual relationship by
+changing the cause!</p>
+<pre class="r"><code>aggregated &lt;- 
+  simulation %&gt;% 
   group_by(month) %&gt;% 
   summarize(
     email = mean(email),
-    convert = mean(convert)
-  ) %&gt;% 
-  summarize(email_convert_cor = cor(email, convert))</code></pre>
-<pre><code>## # A tibble: 1 × 1
-##   email_convert_cor
-##               &lt;dbl&gt;
-## 1             0.957</code></pre>
+    convert = mean(convert),
+    tutorial = mean(tutorial)
+  ) 
+
+aggregated</code></pre>
+<pre><code>## # A tibble: 12 × 4
+##    month email convert tutorial
+##    &lt;dbl&gt; &lt;dbl&gt;   &lt;dbl&gt;    &lt;dbl&gt;
+##  1     1 0.619   0.783    0.601
+##  2     2 0.608   0.782    0.599
+##  3     3 0.635   0.786    0.600
+##  4     4 0.639   0.790    0.600
+##  5     5 0.650   0.788    0.599
+##  6     6 0.641   0.790    0.602
+##  7     7 0.626   0.786    0.601
+##  8     8 0.662   0.791    0.598
+##  9     9 0.636   0.787    0.598
+## 10    10 0.653   0.790    0.601
+## 11    11 0.640   0.789    0.601
+## 12    12 0.655   0.790    0.601</code></pre>
+<pre class="r"><code>aggregated %&gt;% 
+  summarize(
+    email_convert_cor = cor(email, convert),
+    tutorial_convert_cor = cor(tutorial, convert)
+  )</code></pre>
+<pre><code>## # A tibble: 1 × 2
+##   email_convert_cor tutorial_convert_cor
+##               &lt;dbl&gt;                &lt;dbl&gt;
+## 1             0.912                0.152</code></pre>
+</div>
+<div id="scenario-2" class="section level2">
+<h2>Scenario 2:</h2>
+<p>Over the last year, there has been a fluctuation in the proportion of
+customers watching the tutorial. (Probably because the company make the
+tutorial easier to notice.)</p>
+<pre class="r"><code>set.seed(12523)
+simulation &lt;- 
+  data.frame(
+    email = logical(), 
+    tutorial = logical(),
+    convert = logical(),
+    month = integer()
+  )
+tutorial_rate &lt;- c(0.55, 0.53, 0.57, 0.58, 0.59, 0.6, 0.58, 0.64, 0.62, 0.61, 0.62, 0.64)
+commit_rate &lt;- 0.35
+m &lt;- 1
+N &lt;- 1e5
+count &lt;- 0
+for (rate in tutorial_rate) {
+  commit &lt;- 
+    data.frame(
+      email = runif(N * commit_rate) &lt; 0.9, 
+      tutorial = runif(N * commit_rate) &lt; rate, 
+      convert = runif(N * commit_rate) &lt; 0.6, 
+      month = m
+    )
+  
+  non_commit &lt;- 
+    data.frame(
+      email = runif(N * (1 - commit_rate)) &lt; 0.5, 
+      tutorial = runif(N * (1 - commit_rate)) &lt; rate, 
+      convert = runif(N * (1 - commit_rate)) &lt; 0.4, 
+      month = m
+    )
+  
+  combined &lt;- 
+    commit %&gt;% 
+    rbind(non_commit) %&gt;% 
+    mutate(
+      convert = convert | tutorial
+    )
+  
+  simulation &lt;- simulation %&gt;% rbind(combined)
+  m &lt;- m + 1
+}</code></pre>
+<p>We get similar results with approach A.</p>
+<pre class="r"><code>simulation %&gt;% 
+  summarize(
+    email_convert_cor = cor(email, convert),
+    tutorial_convert_cor = cor(tutorial, convert)
+  )</code></pre>
+<pre><code>##   email_convert_cor tutorial_convert_cor
+## 1        0.03834775            0.6325293</code></pre>
+<p>However, the results from approach B is completely flipped. % of
+customers linking emails in 7 days is no longer correlated with 31-day
+conversion. This is expected because their common cause, the proportion
+of committed customers, remain constant over the period.</p>
+<p>On the other hand, % of customers watching the tutorial in 7 days
+almost has a perfect correlation with conversion. This is because the
+change in conversion is indeed caused by the change in % of customers
+watching the tutorial. This time the casual relationship manifests
+itself.</p>
+<pre class="r"><code>aggregated &lt;- 
+  simulation %&gt;% 
+  group_by(month) %&gt;% 
+  summarize(
+    email = mean(email),
+    convert = mean(convert),
+    tutorial = mean(tutorial)
+  ) 
+
+aggregated</code></pre>
+<pre><code>## # A tibble: 12 × 4
+##    month email convert tutorial
+##    &lt;dbl&gt; &lt;dbl&gt;   &lt;dbl&gt;    &lt;dbl&gt;
+##  1     1 0.640   0.761    0.550
+##  2     2 0.639   0.750    0.529
+##  3     3 0.643   0.771    0.568
+##  4     4 0.639   0.779    0.580
+##  5     5 0.639   0.781    0.589
+##  6     6 0.637   0.789    0.602
+##  7     7 0.639   0.780    0.581
+##  8     8 0.642   0.809    0.637
+##  9     9 0.639   0.798    0.618
+## 10    10 0.641   0.794    0.611
+## 11    11 0.640   0.800    0.621
+## 12    12 0.639   0.808    0.639</code></pre>
+<pre class="r"><code>aggregated %&gt;% 
+  summarize(
+    email_convert_cor = cor(email, convert),
+    tutorial_convert_cor = cor(tutorial, convert)
+  )</code></pre>
+<pre><code>## # A tibble: 1 × 2
+##   email_convert_cor tutorial_convert_cor
+##               &lt;dbl&gt;                &lt;dbl&gt;
+## 1            0.0756                0.999</code></pre>
+</div>
 
 
 
